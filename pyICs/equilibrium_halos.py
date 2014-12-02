@@ -6,7 +6,7 @@ equilibrium_halos
 """
 
 import numpy as np
-import scipy.interpolate as interp
+from scipy import interpolate as interp
 import sys
 import time
 from . import am_profiles, density_profiles, tools
@@ -69,6 +69,8 @@ class SampleDarkHalo:
         self.__m_vir = units.Unit(self.__m_vir)
         self.__h = kwargs.get('h', 0.7)
         self.__overden = kwargs.get('overden', 200.)
+        self.__r_vir = tools.calc_r_vir(self.__m_vir, self.__h, self.__overden)
+        self.__r_s = self.__r_vir/self.__pars['c']
         self.__logxmin_rho = kwargs.get('logxmin_rho', -3.)
         self.__logxmax_rho = kwargs.get('logxmax_rho', 3.)
         self.__logxmin_dist_func = kwargs.get('logxmin_dist_func', -3.)
@@ -245,17 +247,6 @@ class SampleDarkHalo:
         self.__n_inside_r_vir = (self.__r < self.__pars['c']).sum()
         self.__eps = self.__pars['c']/np.sqrt(self.__n_inside_r_vir)
 
-    def __calc_rho_crit(self):
-        """Calculate critical density for given Hubble constant"""
-        self.__rho_crit = 3.*self.__h**2*units.Unit('1e2 km s**-1 Mpc**-1')**2/8./np.pi/units.G
-
-    def __calc_r_vir(self):
-        """Calculate virial radius (R200 w.r.t. rho_crit)"""
-        self.__calc_rho_crit()
-        rvir3 = 3./4./np.pi/self.__overden*self.__m_vir/self.__rho_crit
-        self.__r_vir = array.SimArray((rvir3.in_units('kpc**3'))**(1./3.), 'kpc')
-        self.__r_s = self.__r_vir/self.__pars['c']
-
     def __calc_mc(self):
         """Calculate mass inside scale radius"""
         masses = self.__mass(self.__x_rho)
@@ -287,13 +278,15 @@ class SampleDarkHalo:
             v_time = time.clock()
             print(' done in {0:.2g} s'.format(v_time-f_time) + ' '*10)
         self.__set_softening()
-        self.__calc_r_vir()
+        #self.__calc_r_vir()
         if self.__do_velocities: self.__calc_vel_units()
         self.sim = snapshot._new(self.__n_particles)
         self.sim['mass'] = np.ones(self.__n_particles)/self.__n_inside_r_vir
         self.sim['mass'].units = self.__m_vir
-        self.sim['pos'] = self.__pos*self.__r_s
-        self.sim['eps'] = np.ones(self.__n_particles)*self.__eps*self.__r_s
+        self.sim['pos'] = self.__pos
+        self.sim['pos'].units = self.__r_s
+        self.sim['eps'] = np.ones(self.__n_particles)*self.__eps
+        self.sim['eps'].units = self.__r_s
         if self.__do_velocities: self.sim['vel'] = self.__vel*self.__vel_fac
         else: self.sim['vel'] = np.zeros(self.sim['vel'].shape)
         if self.__no_bulk_vel: self.sim['vel'] -= self.sim.mean_by_mass('vel')
@@ -326,6 +319,8 @@ class EquilibriumHalo:
         self.__m_vir = units.Unit(self.__m_vir)
         self.__h = kwargs.get('h', 0.7)
         self.__overden = kwargs.get('overden', 200.)
+        self.__r_vir = tools.calc_r_vir(self.__m_vir, self.__h, self.__overden)
+        self.__r_s = self.__r_vir/self.__pars['c']
         self.__logxmin_rho = kwargs.get('logxmin_rho', -3.)
         self.__logxmax_rho = kwargs.get('logxmax_rho', 3.)
         self.__logxmin_dist_func = kwargs.get('logxmin_dist_func', -3.)
@@ -351,13 +346,14 @@ class EquilibriumHalo:
             'c': 10., 'factor': 0.1})
         self.__vel_prof = kwargs.get('vel_prof', None)
         self.__vel_pars = kwargs.get('vel_pars', {'rs_v': array.SimArray(1., 'kpc'),
-            'c': self.__total_pars['c'], 'prefac': 1.})
+            'c': self.__pars['c'], 'prefac': 1., 'factor': 1.})
         self.__n_gas_particles = int(kwargs.get('n_gas_particles', 1e5))
         self.__ang_mom_prof = kwargs.get('ang_mom_prof', am_profiles.bullock_prof)
         self.__ang_mom_pars = kwargs.get('ang_mom_pars', {'mu': self.__mu})
 
     def __make_dark_halo(self):
-        self._dark_halo = SampleDarkHalo(prng=self.__prng, self.__kwargs)
+        self.__kwargs['prng'] = self.__prng
+        self._dark_halo = SampleDarkHalo(self.__kwargs)
         self._dark_halo.sample_equilibrium_halo()
 
     def __make_gas_sphere(self):
@@ -369,7 +365,7 @@ class EquilibriumHalo:
         self._gas.sample_equilibrium_halo()
         self._gas.sim['mass'] *= self.__f_bary
 
-    def __calc_enclosed_mass(self, R):
+    def __calc_enclosed_mass_of_R(self, R):
         z = np.append(0, np.logspace(-4, 0, 1000))
         if not 0 in R:
             R = array.SimArray(np.append(0, R), R.units)
@@ -389,13 +385,28 @@ class EquilibriumHalo:
         rintegrand *= np.sqrt(zz)
         rintegrand = 0.5*(rintegrand[1:]+rintegrand[:-1])
         dR = R[1:] - R[:-1]
-        self.__enclosed_gas_mass = 4.*np.pi*((rintegrand*dR).cumsum())
+        return 4.*np.pi*((rintegrand*dR).cumsum())*self.__f_bary
+        #self.__enclosed_gas_mass_tck = interp.splrep(R[1:], enclosed_gas_mass)
 
     def __invert_ang_mom_profile(self):
         j = np.linspace(0, 1, 1000)
         m = self.__ang_mom_prof(j, self.__)
-        self.__inverse_ang_mom_prof_tck = interpolate.splrep(m, j)
+        self.__inverse_ang_mom_prof_tck = interp.splrep(m, j, k=1)
 
-    def __interpolate_velocities(self):
-        r = np.logspace(np.log10(self._gas.sim['rxy'].min()), np.log10(self._gas.sim['rxy'].max()), 1000)
-        self.__vc_tck = interpolate.splrep(
+    def __interpolate_jz_of_R(self):
+        R = np.logspace(np.log10(self._gas.sim['rxy'].min()), np.log10(self._gas.sim['rxy'].max()), 1000)
+        jz = interp.splev(self.__calc_enclosed_mass_of_R(R), self.__inverse_ang_mom_prof_tck)
+        self.__jz_of_R_tck = interp.splrep(R, jz, k=1)
+
+    def __calc_j_max(self):
+        self.__j_max = ((units.G*self.__m_vir*self.__r_vir)**(1,2)) * self.__spin_parameter
+        self.__j_max *= np.sqrt(2.) / (1.-self.__mu) / (self.__mu*np.log(1.-1./self.__mu)+1.)
+
+    def __set_gas_velocities(self):
+        vc = array.SimArray(interp.splev(self._gas.sim['rxy'], self.__jz_of_R_tck), self.__j_max)
+        vc /= self._gas.sim['rxy']
+        vc *= tools.outer_smooth_cutoff(self._gas.sim['r'].in_units(self.__r_vir),
+            self.__vel_pars['factor'].in_units(self.__r_vir))
+        az = self._gas.sim['az']
+        self._gas.sim['vel'][:,:-1] = (np.array([-np.sin(az), np.cos(az)])*vc).transpose()
+        self._gas.sim['vel'][:,-1] = np.zeros(self.__n_gas_particles)
