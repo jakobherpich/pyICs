@@ -296,7 +296,9 @@ class SampleDarkHalo:
         #self.sim['pos'].units = self.__r_s
         self.sim['eps'] = array.SimArray(np.ones(self.__n_particles)*self.__eps, self.__r_s)
         #self.sim['eps'].units = self.__r_s
-        if self.__do_velocities: self.sim['vel'] = array.SimArray(self.__vel, self.__vel_fac)
+        if self.__do_velocities:
+            self.__calc_vel_units()
+            self.sim['vel'] = array.SimArray(self.__vel, self.__vel_fac)
         else: self.sim['vel'] = np.zeros(self.sim['vel'].shape)
         if self.__no_bulk_vel: self.sim['vel'] -= self.sim.mean_by_mass('vel')
         end = time.clock()
@@ -363,7 +365,7 @@ class EquilibriumHalo:
         self.__ang_mom_pars = kwargs.get('ang_mom_pars', {'mu': self.__mu})
         self.__fname = kwargs.get('fname', 'halo.out')
         self.__type = {'gadget': gadget.GadgetSnap,
-                        'grafic': grafic.GraficICSnap,
+                        'grafic': grafic.GrafICSnap,
                         'nchilada': nchilada.NchiladaSnap,
                         'ramses': ramses.RamsesSnap,
                         'tipsy': tipsy.TipsySnap}[kwargs.get('type', 'tipsy')]
@@ -405,8 +407,8 @@ class EquilibriumHalo:
             n_samlple_rho=self.__n_sample_rho, n_particles=self.__n_gas_particles,
             prng=prng, do_velocities=False, snap=self.sim.g)
         self._gas.sample_equilibrium_halo()
-        self._gas.sim['mass'] *= self.__f_bary
-        self._gas.sim['pressure'] = array.SimArray(np.zeros(self.__n_gas_particles),
+        self.sim.g['mass'] *= self.__f_bary
+        self.sim.g['pressure'] = array.SimArray(np.zeros(self.__n_gas_particles),
             'g cm**-1 s**-2')
 
     def __calc_enclosed_mass_of_R(self, R):
@@ -443,6 +445,7 @@ class EquilibriumHalo:
             self._gas.sim['rxy'].units).in_units(self.__r_s)
         m_encl = self.__calc_enclosed_mass_of_R(R)
         m_encl /= m_encl.max()
+        self.__invert_ang_mom_profile()
         jz = interp.splev(m_encl, self.__inverse_ang_mom_prof_tck)
         self.__jz_of_R_tck = interp.splrep(R.in_units('kpc'), jz, k=1)
 
@@ -451,6 +454,7 @@ class EquilibriumHalo:
         self.__j_max *= np.sqrt(2.) / (1.-self.__mu) / (self.__mu*np.log(1.-1./self.__mu)+1.)
 
     def __set_gas_velocities(self):
+        self.__interpolate_jz_of_R()
         vc = array.SimArray(interp.splev(self._gas.sim['rxy'].in_units('kpc'),
             self.__jz_of_R_tck), self.__j_max)
         vc /= self._gas.sim['rxy']
@@ -471,24 +475,33 @@ class EquilibriumHalo:
         unit = self.__pars['c']**4*self.__overden**2/4./np.pi/self.__m_c/self.__m_c_gas
         unit *= units.G*self.__r_vir**2*tools.calc_rho_crit(self.__h)**2
         self.__p.units = tools.sim_array_to_unit(unit)
-        self._gas.sim['pressure'] += self.__p
-        tools.iterate_temp(self._gas.sim)
+        self.sim.g['pressure'] += self.__p
 
     def __calc_temp(self):
         # units
-        fac = self.__gas_prof['c']**3*self.__overden/2./np.pi/self.__m_c_gas
+        fac = self.__gas_pars['c']**3*self.__overden/2./np.pi/self.__m_c_gas
         rho_0 = fac*tools.calc_rho_crit(self.__h)
         # density 1st guess
         dens = array.SimArray(np.interp(self._gas.sim['r'].in_units('kpc'),
             self.__x_rho, self.__gas_profile(self.__x_rho, self.__gas_pars)), rho_0)
-        temp = (self._sim['pressure']/self._sim['dens']/units.k*units.m_p).in_units('K')
+        temp = (self.sim.g['pressure']/dens/units.k*units.m_p).in_units('K')
         self.sim.g['temp'] = temp
-        iterate_temp(self._gas.sim, **self.__kwargs)
+        tools.iterate_temp(self._gas.sim)
+
+    def make_halo(self):
+        self.__make_dark_halo()
+        self.__make_gas_sphere()
+        self.__calc_j_max()
+        self.__invert_ang_mom_profile()
+        self.__set_gas_velocities()
+        self.__calc_gravity_pressure()
+        self.__calc_temp()
 
     def finalize(self):
         self.sim.properties['a'] = 0.
         self.sim.properties['time'] = 0.
-        if self.__type == tipsy.TispySnap:
+        del(self.sim['pressure'])
+        if self.__type == tipsy.TipsySnap:
             self.sim.physical_units(mass='2.325e5 Msol')
         else:
             self.sim.physical_units()

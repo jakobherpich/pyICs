@@ -108,7 +108,7 @@ def iterate_temp(gas, tol=1e-4):
     mu_half = (mu_high+mu_low)/2.
     while ((np.abs(mu_high-mu_low)/mu_low) > tol).any():
         mu = get_mu(mu_half*temp, pressure)
-        high = np.where(mu_half*temp, pres)
+        high = np.where(mu > mu_half)
         mu_low[high] = mu_half[high]
         low = np.where(mu <= mu_half)
         mu_high[low] = mu_half[low]
