@@ -20,7 +20,7 @@ in arbitrary units.
 
 import numpy as np
 
-def alphabetagamma(x, pars):
+def alphabetagamma(x, pars, **kwargs):
     """
 
     Simple implementation of (alpha, beta, gamma) models (2004ApJ...601..37)
@@ -74,7 +74,7 @@ def alphabetagamma(x, pars):
         rho[outer] /= (c**gamma)*((1+c**alpha)**((beta-gamma)/alpha))
     return rho
 
-def dalphabetagammadr(x, pars):
+def dalphabetagammadr(x, pars, **kwargs):
     """
 
     Funciton that returns the first derivative of the alphabetagamma density
@@ -104,7 +104,7 @@ def dalphabetagammadr(x, pars):
         fac[outer] = eps/x[outer] - 1./c/factor
     return fac*alphabetagamma(x, pars)
 
-def d2alphabetagammadr2(x, pars):
+def d2alphabetagammadr2(x, pars, **kwargs):
     """
 
     Funciton that returns the second derivative of the alphabetagamma density

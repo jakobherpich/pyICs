@@ -25,11 +25,14 @@ def simpsons_integral(x, integrand_of_x, zero=False, norm_ind=0):
     integrand_of_x : function which calculates integrand(x) as a function of x
     (it is likely to use the lambda keyword here)
 
-    zero (True) : if 'True' lower bound is taken to be zero
+    zero (False) : if 'True' lower bound is taken to be zero, that means
+        int_0^x[0] integrand(x)dx is added to the integral. Useful for log spaced
+        x. DO NOT USE IF x[0] < 0.
 
     norm_ind (0) : This parameter sets the normalization of the integral, i.e. a
         constant is added to the return array such that I[norm_ind] = 0. This is useful
         for calculating integrals that are set to be 0 at x=infty.
+        Has no effect if 'zero' is set to 'True'.
 
     """
 
@@ -41,10 +44,10 @@ def simpsons_integral(x, integrand_of_x, zero=False, norm_ind=0):
     else:
         first = np.array([0.])
     s = np.append(first, (dx*(sum1+4.*sum2)/6.)).cumsum()
-    if not zero:
-        return s - s[norm_ind]
-    else:
+    if zero:
         return s
+    else:
+        return s - s[norm_ind]
 
 def smooth_exponential_cutoff(x):
     ret = (2. - 3./np.e)*x**3 + (4./np.e - 3.)*x**2 + 1.
@@ -117,7 +120,6 @@ def get_mu(T, elecPres) :
     Calculate mean molecular weight given the temperature and pressure
     using hydrogen and helium.
 
-
     Parameters:
     -----------
 
@@ -144,8 +146,12 @@ def get_mu(T, elecPres) :
     HeII = He2n3/(fracHeIIIHeII+1.);
     return HII*Htot/2.+HI*Htot+4.*Hetot*(HeIII/3.+HeII/2.+HeI);
 
-
 def calc_saha(T, partTop, partBottom, elecPres, IonEnergy) : 
     kB = 1.38066e-16 # erg kelvin^-1 
     TwoPimekBonhh = 17998807946.6
     return 2.*kB*T/elecPres*partTop/partBottom*(TwoPimekBonhh*T)**1.5*np.exp(-IonEnergy/kB/T)
+
+def sim_array_to_unit(arr):
+    if isinstance(arr, units.UnitBase):
+        return arr
+    return units.Unit('{0:g} {1}'.format(arr, arr.units))

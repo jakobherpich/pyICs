@@ -4,7 +4,7 @@ am_profiles
 ================
 
 This is a simple collection of angular momentum profiles
-m = M(<j)/M_vir/f_bary.
+m = M(<j)/(M_vir*f_bary).
 They will be used to calculate velocities of the gas particles.
 They have to be defined as follows:
 
@@ -38,4 +38,5 @@ def bullock_prof(j, pars):
 
     """
 
+    mu = pars['mu']
     return mu*j/(j+mu-1.)

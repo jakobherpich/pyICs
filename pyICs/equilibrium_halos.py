@@ -10,7 +10,8 @@ from scipy import interpolate as interp
 import sys
 import time
 from . import am_profiles, density_profiles, tools
-from pynbody import snapshot, array, units
+from pynbody import array, new, snapshot, units
+from pynbody import gadget, grafic, nchilada, ramses, tipsy
 
 class SampleDarkHalo:
     """
@@ -88,6 +89,13 @@ class SampleDarkHalo:
         self.__no_bulk_vel = kwargs.get('no_bulk_vel', True)
         self.__x_rho = np.logspace(self.__logxmin_rho, self.__logxmax_rho, self.__n_sample_rho)
         self.__do_velocities = kwargs.get('do_velocities', True)
+        self.__gas = kwargs.get('gas', False)
+        if 'snap' in kwargs.keys():
+            self.sim = kwargs['snap']
+        elif self.__gas:
+            self.sim = snapshot._new(gas=self.__n_particles)
+        else:
+            self.sim = snapshot._new(self.__n_particles)
 
     def __mass(self, x):
         """Calculate enclosed mass in spherical shells"""
@@ -256,7 +264,7 @@ class SampleDarkHalo:
     def __calc_vel_units(self):
         """Calculate conversion factor to convert velocities to km/s"""
         self.__calc_mc()
-        self.__vel_fac = np.sqrt(1./self.__r_s*units.G*self.__m_vir/self.__mc)
+        self.__vel_fac = 1./(self.__r_s*units.G*self.__m_vir/self.__mc)**(1,2)
 
     def sample_equilibrium_halo(self):
         """This method actually creates the halo"""
@@ -277,23 +285,26 @@ class SampleDarkHalo:
             self.__set_velocities()
             v_time = time.clock()
             print(' done in {0:.2g} s'.format(v_time-f_time) + ' '*10)
+        #import pdb
+        #pdb.set_trace()
         self.__set_softening()
         #self.__calc_r_vir()
-        if self.__do_velocities: self.__calc_vel_units()
-        self.sim = snapshot._new(self.__n_particles)
-        self.sim['mass'] = np.ones(self.__n_particles)/self.__n_inside_r_vir
-        self.sim['mass'].units = self.__m_vir
-        self.sim['pos'] = self.__pos
-        self.sim['pos'].units = self.__r_s
-        self.sim['eps'] = np.ones(self.__n_particles)*self.__eps
-        self.sim['eps'].units = self.__r_s
-        if self.__do_velocities: self.sim['vel'] = self.__vel*self.__vel_fac
+        self.sim['mass'] = array.SimArray(np.ones(self.__n_particles)/self.__n_inside_r_vir,
+            self.__m_vir)
+        #self.sim['mass'].units = self.__m_vir
+        self.sim['pos'] = array.SimArray(self.__pos, self.__r_s)
+        #self.sim['pos'].units = self.__r_s
+        self.sim['eps'] = array.SimArray(np.ones(self.__n_particles)*self.__eps, self.__r_s)
+        #self.sim['eps'].units = self.__r_s
+        if self.__do_velocities: self.sim['vel'] = array.SimArray(self.__vel, self.__vel_fac)
         else: self.sim['vel'] = np.zeros(self.sim['vel'].shape)
         if self.__no_bulk_vel: self.sim['vel'] -= self.sim.mean_by_mass('vel')
-        self.sim.properties['a'] = 0. # This is necessarry in order to set the time to 0
-        self.sim.physical_units(mass='2.325e5 Msol')
         end = time.clock()
         print('SampleDarkHalo: halo created in {0:.2g} s'.format(end-start))
+
+    def finalize(self):
+        self.sim.properties['a'] = 0. # This is necessarry in order to set the time to 0
+        self.sim.physical_units(mass='2.325e5 Msol')
 
 class EquilibriumHalo:
     """
@@ -350,33 +361,65 @@ class EquilibriumHalo:
         self.__n_gas_particles = int(kwargs.get('n_gas_particles', 1e5))
         self.__ang_mom_prof = kwargs.get('ang_mom_prof', am_profiles.bullock_prof)
         self.__ang_mom_pars = kwargs.get('ang_mom_pars', {'mu': self.__mu})
+        self.__fname = kwargs.get('fname', 'halo.out')
+        self.__type = {'gadget': gadget.GadgetSnap,
+                        'grafic': grafic.GraficICSnap,
+                        'nchilada': nchilada.NchiladaSnap,
+                        'ramses': ramses.RamsesSnap,
+                        'tipsy': tipsy.TipsySnap}[kwargs.get('type', 'tipsy')]
+        self.sim = new(dm=self.__n_particles, gas=self.__n_gas_particles)
+        self.sim.physical_units()
+
+    def __mass(self, x):
+        """Calculate enclosed mass in spherical shells"""
+        return tools.simpsons_integral(x, lambda x: x*x*self.__profile(x, self.__pars),
+            zero=True)
+
+    def __gas_mass(self, x):
+        """Calculate enclosed mass in spherical shells"""
+        return tools.simpsons_integral(x, lambda x: x*x*self.__gas_profile(x, self.__pars),
+            zero=True)*self.__f_bary
+
+    def __calc_m_c(self):
+        """Calculate dimensionless mass at virial radius"""
+        self.__m_c = np.interp(self.__pars['c'], self.__x_rho, self.__mass(self.__x_rho))
+        self.__m_c_gas = np.interp(self.__pars['c'], self.__x_rho, self.__gas_mass(self.__x_rho))
+        self.__m_c_gas *= self.__f_bary
+
+    def __gravity(self, x):
+        """Calculate gravitational acceleration as function of spherical radius"""
+        return -self.__mass(x)/x/x
 
     def __make_dark_halo(self):
-        self.__kwargs['prng'] = self.__prng
-        self._dark_halo = SampleDarkHalo(self.__kwargs)
+        self.__kwargs['prng'] = np.random.RandomState(self.__random_seed)
+        self.__kwargs['snap'] = self.sim.d
+        self._dark_halo = SampleDarkHalo(**self.__kwargs)
         self._dark_halo.sample_equilibrium_halo()
+        self.sim.d['mass'] *= (1. - self.__f_bary)
 
     def __make_gas_sphere(self):
+        prng = np.random.RandomState(self.__random_seed+1)
         self._gas = SampleDarkHalo(profile=self.__gas_profile, pars=self.__gas_pars,
             m_vir=self.__m_vir, h=self.__h, overden=self.__overden,
             logxmin_rho=self.__logxmin_rho, logxmax_rho=self.__logxmax_rho,
-            n_samlple_rho=self.__n_sample_rho, n_particles=self.__n_particles,
-            prng=self.__prng, do_velocities=False)
+            n_samlple_rho=self.__n_sample_rho, n_particles=self.__n_gas_particles,
+            prng=prng, do_velocities=False, snap=self.sim.g)
         self._gas.sample_equilibrium_halo()
         self._gas.sim['mass'] *= self.__f_bary
+        self._gas.sim['pressure'] = array.SimArray(np.zeros(self.__n_gas_particles),
+            'g cm**-1 s**-2')
 
     def __calc_enclosed_mass_of_R(self, R):
         z = np.append(0, np.logspace(-4, 0, 1000))
         if not 0 in R:
             R = array.SimArray(np.append(0, R), R.units)
         Rs, Zs = np.meshgrid(R, z)
-        Rs = SimArray(Rs, R.units)
+        Rs = array.SimArray(Rs, R.units)
         c = self.__gas_pars['c']
-        rs = SimArray(self.__gas_pars['r_s'], 'kpc')
-        integrand = self.__gas_profile(np.sqrt(Rs*Rs+(c*c*rs*rs-Rs*Rs)*Zs*Zs),
+        rs = self.__r_vir/c
+        integrand = self.__gas_profile(np.sqrt(Rs*Rs+(c*c*rs*rs-Rs*Rs)*Zs*Zs).in_units(R.units),
             self.__gas_pars, **self.__kwargs)*Rs
-        integrand[np.where((Rs==0)*(Zs==0))] = self.__gas_profile(0, self.__gas_pars,
-            **self.__kwargs)*SimArray(0, 'kpc')
+        integrand[np.where((Rs==0)*(Zs==0))] = 0.
         integrand = 0.5*(integrand[1:,]+integrand[:-1,])
         dz = z[1:] - z[:-1]
         rintegrand = (integrand.T*dz).T.sum(axis=0)
@@ -390,23 +433,63 @@ class EquilibriumHalo:
 
     def __invert_ang_mom_profile(self):
         j = np.linspace(0, 1, 1000)
-        m = self.__ang_mom_prof(j, self.__)
+        m = self.__ang_mom_prof(j, self.__ang_mom_pars)
         self.__inverse_ang_mom_prof_tck = interp.splrep(m, j, k=1)
 
     def __interpolate_jz_of_R(self):
-        R = np.logspace(np.log10(self._gas.sim['rxy'].min()), np.log10(self._gas.sim['rxy'].max()), 1000)
-        jz = interp.splev(self.__calc_enclosed_mass_of_R(R), self.__inverse_ang_mom_prof_tck)
-        self.__jz_of_R_tck = interp.splrep(R, jz, k=1)
+        R = array.SimArray(np.logspace(np.log10(self._gas.sim['rxy'].min()),
+            #np.log10(self._gas.sim['rxy'].max()), 1000), self.__r_s)
+            np.log10(self._gas.sim['rxy'].max()), 1000),
+            self._gas.sim['rxy'].units).in_units(self.__r_s)
+        m_encl = self.__calc_enclosed_mass_of_R(R)
+        m_encl /= m_encl.max()
+        jz = interp.splev(m_encl, self.__inverse_ang_mom_prof_tck)
+        self.__jz_of_R_tck = interp.splrep(R.in_units('kpc'), jz, k=1)
 
     def __calc_j_max(self):
         self.__j_max = ((units.G*self.__m_vir*self.__r_vir)**(1,2)) * self.__spin_parameter
         self.__j_max *= np.sqrt(2.) / (1.-self.__mu) / (self.__mu*np.log(1.-1./self.__mu)+1.)
 
     def __set_gas_velocities(self):
-        vc = array.SimArray(interp.splev(self._gas.sim['rxy'], self.__jz_of_R_tck), self.__j_max)
+        vc = array.SimArray(interp.splev(self._gas.sim['rxy'].in_units('kpc'),
+            self.__jz_of_R_tck), self.__j_max)
         vc /= self._gas.sim['rxy']
-        vc *= tools.outer_smooth_cutoff(self._gas.sim['r'].in_units(self.__r_vir),
-            self.__vel_pars['factor'].in_units(self.__r_vir))
+        # Truncate velocity profile outside R_vir
+        r_v = self.__r_vir
+        vc *= tools.outer_smooth_cutoff(self._gas.sim['r'].in_units(r_v).view(np.ndarray),
+            self.__vel_pars['factor'])
         az = self._gas.sim['az']
+        self._gas.sim['vel'].units = units.Unit('km s**-1')
         self._gas.sim['vel'][:,:-1] = (np.array([-np.sin(az), np.cos(az)])*vc).transpose()
         self._gas.sim['vel'][:,-1] = np.zeros(self.__n_gas_particles)
+
+    def __calc_gravity_pressure(self):
+        integrand = lambda x: self.__gravity(x)*self.__gas_profile(x*self.__gas_pars['c']/self.__pars['c'],
+        self.__gas_pars, **self.__kwargs)*self.__f_bary
+        self.__p = array.SimArray(tools.simpsons_integral(self.__x_rho, integrand, norm_ind=-1))
+        self.__calc_m_c()
+        unit = self.__pars['c']**4*self.__overden**2/4./np.pi/self.__m_c/self.__m_c_gas
+        unit *= units.G*self.__r_vir**2*tools.calc_rho_crit(self.__h)**2
+        self.__p.units = tools.sim_array_to_unit(unit)
+        self._gas.sim['pressure'] += self.__p
+        tools.iterate_temp(self._gas.sim)
+
+    def __calc_temp(self):
+        # units
+        fac = self.__gas_prof['c']**3*self.__overden/2./np.pi/self.__m_c_gas
+        rho_0 = fac*tools.calc_rho_crit(self.__h)
+        # density 1st guess
+        dens = array.SimArray(np.interp(self._gas.sim['r'].in_units('kpc'),
+            self.__x_rho, self.__gas_profile(self.__x_rho, self.__gas_pars)), rho_0)
+        temp = (self._sim['pressure']/self._sim['dens']/units.k*units.m_p).in_units('K')
+        self.sim.g['temp'] = temp
+        iterate_temp(self._gas.sim, **self.__kwargs)
+
+    def finalize(self):
+        self.sim.properties['a'] = 0.
+        self.sim.properties['time'] = 0.
+        if self.__type == tipsy.TispySnap:
+            self.sim.physical_units(mass='2.325e5 Msol')
+        else:
+            self.sim.physical_units()
+        self.sim.write(self.__type, self.__fname)
