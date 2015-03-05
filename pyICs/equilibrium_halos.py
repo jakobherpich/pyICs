@@ -264,7 +264,7 @@ class SampleDarkHalo:
     def __calc_vel_units(self):
         """Calculate conversion factor to convert velocities to km/s"""
         self.__calc_mc()
-        self.__vel_fac = 1./(self.__r_s*units.G*self.__m_vir/self.__mc)**(1,2)
+        self.__vel_fac = (units.G*self.__m_vir/self.__mc/self.__r_s)**(1,2)
 
     def sample_equilibrium_halo(self):
         """This method actually creates the halo"""
@@ -378,15 +378,14 @@ class EquilibriumHalo:
             zero=True)
 
     def __gas_mass(self, x):
-        """Calculate enclosed mass in spherical shells"""
+        """Calculate dimensionless enclosed mass in spherical shells"""
         return tools.simpsons_integral(x, lambda x: x*x*self.__gas_profile(x, self.__pars),
-            zero=True)*self.__f_bary
+            zero=True)#*self.__f_bary ## This is only the dimensionless mass which must not be normalized by f_bary
 
     def __calc_m_c(self):
         """Calculate dimensionless mass at virial radius"""
         self.__m_c = np.interp(self.__pars['c'], self.__x_rho, self.__mass(self.__x_rho))
-        self.__m_c_gas = np.interp(self.__pars['c'], self.__x_rho, self.__gas_mass(self.__x_rho))
-        self.__m_c_gas *= self.__f_bary
+        self.__m_c_gas = np.interp(self.__gas_pars['c'], self.__x_rho, self.__gas_mass(self.__x_rho))
 
     def __gravity(self, x):
         """Calculate gravitational acceleration as function of spherical radius"""
@@ -458,7 +457,7 @@ class EquilibriumHalo:
         vc = array.SimArray(interp.splev(self._gas.sim['rxy'].in_units('kpc'),
             self.__jz_of_R_tck), self.__j_max)
         vc /= self._gas.sim['rxy']
-        # Truncate velocity profile outside R_vir
+        # Truncate velocity profile smoothly outside R_vir
         r_v = self.__r_vir
         vc *= tools.outer_smooth_cutoff(self._gas.sim['r'].in_units(r_v).view(np.ndarray),
             self.__vel_pars['factor'])
@@ -468,14 +467,16 @@ class EquilibriumHalo:
         self._gas.sim['vel'][:,-1] = np.zeros(self.__n_gas_particles)
 
     def __calc_gravity_pressure(self):
-        integrand = lambda x: self.__gravity(x)*self.__gas_profile(x*self.__gas_pars['c']/self.__pars['c'],
-        self.__gas_pars, **self.__kwargs)*self.__f_bary
+        integrand = lambda x: self.__gravity(x)*self.__gas_profile(x*self.__gas_pars['c']/
+            self.__pars['c'], self.__gas_pars, **self.__kwargs)*self.__f_bary
         self.__p = array.SimArray(tools.simpsons_integral(self.__x_rho, integrand, norm_ind=-1))
         self.__calc_m_c()
-        unit = self.__pars['c']**4*self.__overden**2/4./np.pi/self.__m_c/self.__m_c_gas
+        unit = self.__pars['c']*self.__gas_pars['c']**3*self.__overden**2
+        unit /= 4.*np.pi*self.__m_c*self.__m_c_gas
         unit *= units.G*self.__r_vir**2*tools.calc_rho_crit(self.__h)**2
         self.__p.units = tools.sim_array_to_unit(unit)
-        self.sim.g['pressure'] += self.__p
+        self.sim.g['pressure'] += np.interp(self.sim.g['r'].in_units(self.__r_s),
+            self.__x_rho, self.__p.in_units(self.sim.g['pressure'].units))
 
     def __calc_temp(self):
         # units
@@ -483,7 +484,7 @@ class EquilibriumHalo:
         rho_0 = fac*tools.calc_rho_crit(self.__h)
         # density 1st guess
         dens = array.SimArray(np.interp(self._gas.sim['r'].in_units('kpc'),
-            self.__x_rho, self.__gas_profile(self.__x_rho, self.__gas_pars)), rho_0)
+            self.__x_rho, self.__gas_profile(self.__x_rho, self.__gas_pars)), rho_0/2.)
         temp = (self.sim.g['pressure']/dens/units.k*units.m_p).in_units('K')
         self.sim.g['temp'] = temp
         tools.iterate_temp(self._gas.sim)

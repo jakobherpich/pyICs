@@ -154,4 +154,4 @@ def calc_saha(T, partTop, partBottom, elecPres, IonEnergy) :
 def sim_array_to_unit(arr):
     if isinstance(arr, units.UnitBase):
         return arr
-    return units.Unit('{0:g} {1}'.format(arr, arr.units))
+    return float(arr)*units.Unit('{0}'.format(arr.units))
