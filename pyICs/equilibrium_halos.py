@@ -22,7 +22,7 @@ class SampleDarkHalo:
     A class that is initialized with a set of halo parameters (e.g. mass, concentration,
     density profile etc.) and creates an equilibrium spherical non-rotating dark matter
     halo which is created by sampling particle velocities from the distribution function
-    as described by B&T ch. 4.3.1.
+    as described by B&T ch. 4.3.1. and Kazantzidis et al. 2004, ApJ, 601, 37
 
     The default parameters describe an NFW halo with mass 1e12 Msol and 1e5 particles.
 
@@ -173,6 +173,8 @@ class SampleDarkHalo:
         pos = np.where(self.__psi_dist_func > 0.)
         self.__logpsi_of_logx_tck = interp.splrep(np.log10(self.__x_dist_func[pos]),
             np.log10(self.__psi_dist_func[pos]), k=self.__spline_order)
+        # The following 3 lines are directly translated from the non-public code by
+        # Stelios Kazantzidis
         logxs = np.linspace(np.log10(self.__r.min()), np.log10(self.__r.max()),
             self.__n_sample_dist_func)
         self.__e_dist_func = 10**interp.splev(logxs, self.__logpsi_of_logx_tck)
@@ -357,10 +359,11 @@ class EquilibriumHalo:
         self.__gas_profile = kwargs.get('gas_profile', density_profiles.alphabetagamma)
         self.__gas_pars = kwargs.get('gas_pars', {'alpha': 1., 'beta': 3., 'gamma': 1.,
             'c': 10., 'factor': 0.1})
+        self.__r_s_gas = self.__r_vir/self.__gas_pars['c']
         self.__vel_prof = kwargs.get('vel_prof', None)
         self.__vel_pars = kwargs.get('vel_pars', {'rs_v': array.SimArray(1., 'kpc'),
             'c': self.__pars['c'], 'prefac': 1., 'factor': 1.})
-        self.__n_gas_particles = int(kwargs.get('n_gas_particles', 1e5))
+        self.__n_gas_particles = int(kwargs.get('n_gas_particles', self.__n_particles))
         self.__ang_mom_prof = kwargs.get('ang_mom_prof', am_profiles.bullock_prof)
         self.__ang_mom_pars = kwargs.get('ang_mom_pars', {'mu': self.__mu})
         self.__fname = kwargs.get('fname', 'halo.out')
@@ -471,8 +474,8 @@ class EquilibriumHalo:
             self.__pars['c'], self.__gas_pars, **self.__kwargs)*self.__f_bary
         self.__p = array.SimArray(tools.simpsons_integral(self.__x_rho, integrand, norm_ind=-1))
         self.__calc_m_c()
-        unit = self.__pars['c']*self.__gas_pars['c']**3*self.__overden**2
-        unit /= 4.*np.pi*self.__m_c*self.__m_c_gas
+        unit = 4.*np.pi/9.*self.__pars['c']*self.__gas_pars['c']**3*self.__overden**2
+        unit /= self.__m_c*self.__m_c_gas
         unit *= units.G*self.__r_vir**2*tools.calc_rho_crit(self.__h)**2
         self.__p.units = tools.sim_array_to_unit(unit)
         self.sim.g['pressure'] += np.interp(self.sim.g['r'].in_units(self.__r_s),
@@ -480,10 +483,10 @@ class EquilibriumHalo:
 
     def __calc_temp(self):
         # units
-        fac = self.__gas_pars['c']**3*self.__overden/2./np.pi/self.__m_c_gas
-        rho_0 = fac*tools.calc_rho_crit(self.__h)
+        rho_0 = 2./3.*self.__gas_pars['c']**3*self.__overden/self.__m_c_gas*self.__f_bary
+        rho_0 *= tools.calc_rho_crit(self.__h)
         # density 1st guess
-        dens = array.SimArray(np.interp(self._gas.sim['r'].in_units('kpc'),
+        dens = array.SimArray(np.interp(self._gas.sim['r'].in_units(self.__r_s_gas),
             self.__x_rho, self.__gas_profile(self.__x_rho, self.__gas_pars)), rho_0/2.)
         temp = (self.sim.g['pressure']/dens/units.k*units.m_p).in_units('K')
         self.sim.g['temp'] = temp
