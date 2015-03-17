@@ -33,7 +33,7 @@ class SampleDarkHalo:
     >>> from pyICs.density_profiles import *
     >>> pars = {'alpha': 1., 'beta': 4., 'gamma': 1.}
     >>> hern = SampleDarkHalo(profile=alphabetagamma, drhodr=dalphabetagammadr,
-        d2rhodr2=d2alphabetagammadr2, pars=pars, m_vir='1e12 Msol', n_particles=1e6)
+    >>>     d2rhodr2=d2alphabetagammadr2, pars=pars, m_vir='1e12 Msol', n_particles=1e6)
     >>> hern.sample_equilibrium_halo()
     >>> sim = hern.sim
     >>> sim
@@ -287,8 +287,6 @@ class SampleDarkHalo:
             self.__set_velocities()
             v_time = time.clock()
             print(' done in {0:.2g} s'.format(v_time-f_time) + ' '*10)
-        #import pdb
-        #pdb.set_trace()
         self.__set_softening()
         #self.__calc_r_vir()
         self.sim['mass'] = array.SimArray(np.ones(self.__n_particles)/self.__n_inside_r_vir,
@@ -388,7 +386,8 @@ class EquilibriumHalo:
     def __calc_m_c(self):
         """Calculate dimensionless mass at virial radius"""
         self.__m_c = np.interp(self.__pars['c'], self.__x_rho, self.__mass(self.__x_rho))
-        self.__m_c_gas = np.interp(self.__gas_pars['c'], self.__x_rho, self.__gas_mass(self.__x_rho))
+        self.__m_c_gas = np.interp(self.__gas_pars['c'], self.__x_rho,
+            self.__gas_mass(self.__x_rho))/self.__f_bary
 
     def __gravity(self, x):
         """Calculate gravitational acceleration as function of spherical radius"""
@@ -399,6 +398,7 @@ class EquilibriumHalo:
         self.__kwargs['snap'] = self.sim.d
         self._dark_halo = SampleDarkHalo(**self.__kwargs)
         self._dark_halo.sample_equilibrium_halo()
+        #self._dark_halo.finalize()
         self.sim.d['mass'] *= (1. - self.__f_bary)
 
     def __make_gas_sphere(self):
@@ -409,6 +409,7 @@ class EquilibriumHalo:
             n_samlple_rho=self.__n_sample_rho, n_particles=self.__n_gas_particles,
             prng=prng, do_velocities=False, snap=self.sim.g)
         self._gas.sample_equilibrium_halo()
+        #self._gas.finalize()
         self.sim.g['mass'] *= self.__f_bary
         self.sim.g['pressure'] = array.SimArray(np.zeros(self.__n_gas_particles),
             'g cm**-1 s**-2')
@@ -465,17 +466,18 @@ class EquilibriumHalo:
         vc *= tools.outer_smooth_cutoff(self._gas.sim['r'].in_units(r_v).view(np.ndarray),
             self.__vel_pars['factor'])
         az = self._gas.sim['az']
-        self._gas.sim['vel'].units = units.Unit('km s**-1')
-        self._gas.sim['vel'][:,:-1] = (np.array([-np.sin(az), np.cos(az)])*vc).transpose()
+        #self._gas.sim['vel'].units = units.Unit('km s**-1')
+        self._gas.sim['vel'][:,:-1] = (np.array([-np.sin(az),
+            np.cos(az)])*vc.in_units(self.sim['vel'].units)).transpose()
         self._gas.sim['vel'][:,-1] = np.zeros(self.__n_gas_particles)
 
     def __calc_gravity_pressure(self):
         integrand = lambda x: self.__gravity(x)*self.__gas_profile(x*self.__gas_pars['c']/
-            self.__pars['c'], self.__gas_pars, **self.__kwargs)*self.__f_bary
+            self.__pars['c'], self.__gas_pars, **self.__kwargs)
         self.__p = array.SimArray(tools.simpsons_integral(self.__x_rho, integrand, norm_ind=-1))
         self.__calc_m_c()
-        unit = 4.*np.pi/9.*self.__pars['c']*self.__gas_pars['c']**3*self.__overden**2
-        unit /= self.__m_c*self.__m_c_gas
+        unit = 4.*np.pi*self.__pars['c']*self.__gas_pars['c']**3*self.__overden**2
+        unit /= 9.*self.__m_c*self.__m_c_gas
         unit *= units.G*self.__r_vir**2*tools.calc_rho_crit(self.__h)**2
         self.__p.units = tools.sim_array_to_unit(unit)
         self.sim.g['pressure'] += np.interp(self.sim.g['r'].in_units(self.__r_s),
@@ -483,11 +485,12 @@ class EquilibriumHalo:
 
     def __calc_temp(self):
         # units
-        rho_0 = 2./3.*self.__gas_pars['c']**3*self.__overden/self.__m_c_gas*self.__f_bary
+        rho_0 = 2./3.*self.__gas_pars['c']**3*self.__overden/self.__m_c_gas
         rho_0 *= tools.calc_rho_crit(self.__h)
         # density 1st guess
         dens = array.SimArray(np.interp(self._gas.sim['r'].in_units(self.__r_s_gas),
             self.__x_rho, self.__gas_profile(self.__x_rho, self.__gas_pars)), rho_0/2.)
+        self.sim.g['rho'] = dens.in_units(self.sim.g['mass'].units/self.sim.g['pos'].units**3)
         temp = (self.sim.g['pressure']/dens/units.k*units.m_p).in_units('K')
         self.sim.g['temp'] = temp
         tools.iterate_temp(self._gas.sim)
@@ -504,7 +507,8 @@ class EquilibriumHalo:
     def finalize(self):
         self.sim.properties['a'] = 0.
         self.sim.properties['time'] = 0.
-        del(self.sim['pressure'])
+        self.sim.g['metals'] = 0.
+        del(self.sim['pressure'], self.sim['mu'])
         if self.__type == tipsy.TipsySnap:
             self.sim.physical_units(mass='2.325e5 Msol')
         else:

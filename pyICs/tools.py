@@ -113,6 +113,7 @@ def iterate_temp(gas, tol=1e-4):
         low = np.where(mu <= mu_half)
         mu_high[low] = mu_half[low]
         mu_half = (mu_high+mu_low)/2.
+    gas['mu'] = mu_half
     gas['temp'] = array.SimArray(mu_half*temp, 'K')
 
 def get_mu(T, elecPres) : 
