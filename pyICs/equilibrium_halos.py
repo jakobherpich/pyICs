@@ -1,4 +1,21 @@
 """
+    Copyright (C) 2015 Jakob Herpich (herpich@mpia.de)
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+
 
 equilibrium_halos
 =================
@@ -66,26 +83,31 @@ class SampleDarkHalo:
         self.__d2rhodr2 = kwargs.get('d2rhodr2', density_profiles.d2alphabetagammadr2)
         self.__pars = kwargs.get('pars', {'alpha': 1., 'beta': 3., 'gamma': 1.,
             'c': 10., 'factor': 0.1})
+        if self.__profile == density_profiles.alphabetagamma and self.__pars['beta'] <= 3.:
+            if 'factor' not in self.__pars.keys(): self.__pars['factor'] = 0.1
         self.__m_vir = kwargs.get('m_vir', '1e12 Msol')
         self.__m_vir = units.Unit(self.__m_vir)
         self.__h = kwargs.get('h', 0.7)
         self.__overden = kwargs.get('overden', 200.)
         self.__r_vir = tools.calc_r_vir(self.__m_vir, self.__h, self.__overden)
         self.__r_s = self.__r_vir/self.__pars['c']
-        self.__logxmin_rho = kwargs.get('logxmin_rho', -3.)
-        self.__logxmax_rho = kwargs.get('logxmax_rho', 3.)
-        self.__logxmin_dist_func = kwargs.get('logxmin_dist_func', -3.)
-        self.__logxmax_dist_func = kwargs.get('logxmax_dist_func', 14.)
+        self.__n_particles = int(kwargs.get('n_particles', 1e5))
+        self.__logxmax_rho = np.log10(self.__pars['c']) + 2.
+        # Make sure to sample well inside the gravitational softening
+        self.__logxmin_rho = self.__logxmax_rho - .5*np.log10(self.__n_particles) - 3.
+        self.__logxmax_dist_func = np.log10(self.__pars['c']) + 13.
+        self.__logxmin_dist_func = self.__logxmax_dist_func - .5*np.log10(self.__n_particles)
+        self.__logxmin_dist_func -= 14.
         self.__n_sample_rho = int(kwargs.get('n_sample_rho', 1e4))
         self.__n_sample_dist_func = int(kwargs.get('n_sample_dist_func', 1e2))
         self.__n_sample_dist_func_rho = int(kwargs.get('n_sample_dist_func_rho', 1e4))
-        self.__n_particles = int(kwargs.get('n_particles', 1e5))
         self.__random_seed = kwargs.get('random_seed', 4)
         if 'prng' in kwargs.keys():
             self.__prng = kwargs['prng']
         else:
             self.__prng = np.random.RandomState(self.__random_seed)
         self.__spline_order = kwargs.get('spline_order', 3)
+        self.__progress_bar = kwargs.get('progress_bar', False)
         self.__no_bulk_vel = kwargs.get('no_bulk_vel', True)
         self.__x_rho = np.logspace(self.__logxmin_rho, self.__logxmax_rho, self.__n_sample_rho)
         self.__do_velocities = kwargs.get('do_velocities', True)
@@ -173,8 +195,8 @@ class SampleDarkHalo:
         pos = np.where(self.__psi_dist_func > 0.)
         self.__logpsi_of_logx_tck = interp.splrep(np.log10(self.__x_dist_func[pos]),
             np.log10(self.__psi_dist_func[pos]), k=self.__spline_order)
-        # The following 3 lines are directly translated from the non-public code by
-        # Stelios Kazantzidis
+        # The following 3 lines are directly translated from the non-public Fortran
+        # code by Stelios Kazantzidis
         logxs = np.linspace(np.log10(self.__r.min()), np.log10(self.__r.max()),
             self.__n_sample_dist_func)
         self.__e_dist_func = 10**interp.splev(logxs, self.__logpsi_of_logx_tck)
@@ -188,8 +210,8 @@ class SampleDarkHalo:
             integrand = interp.splev(xs, self.__d2rhodpsi2_of_x_tck)*np.sqrt(1. + np.sin(ts))
             integrand = 0.5*(integrand[:-1]+integrand[1:])
             self.__f_dist_func[i] = np.sqrt(e)*(integrand*dt).sum()
-        # This normalization is not really necessarry but useful to test results for known
-        # analytic solutions
+        # This normalization is not really necessarry but useful to test results against
+        # known analytic solutions
         self.__f_dist_func /= np.sqrt(128.*np.pi**6)
 
     def __calc_f_of_e_tck(self):
@@ -221,13 +243,14 @@ class SampleDarkHalo:
         self.__max_iter = 0
         self.__tot_iter = 0
         for i in range(self.__n_particles):
-            if i%10 == 0:
-                sys.stdout.write(' [{0:3d} %'.format(i*100/self.__n_particles))
-                if i*400/self.__n_particles%4 == 0: sys.stdout.write(' | ]')
-                elif i*400/self.__n_particles%4 ==1: sys.stdout.write(' / ]')
-                elif i*400/self.__n_particles%4 ==2: sys.stdout.write(' - ]')
-                elif i*400/self.__n_particles%4 ==3: sys.stdout.write(' \\ ]')
-                sys.stdout.flush()
+            if self.__progress_bar:
+                if i%10 == 0:
+                    sys.stdout.write(' [{0:3d} %'.format(i*100/self.__n_particles))
+                    if i*400/self.__n_particles%4 == 0: sys.stdout.write(' | ]')
+                    elif i*400/self.__n_particles%4 ==1: sys.stdout.write(' / ]')
+                    elif i*400/self.__n_particles%4 ==2: sys.stdout.write(' - ]')
+                    elif i*400/self.__n_particles%4 ==3: sys.stdout.write(' \\ ]')
+                    sys.stdout.flush()
             j = 0
             f = 1.
             f_rand = 2.
@@ -240,7 +263,8 @@ class SampleDarkHalo:
                 f = 10**interp.splev(np.log10(e), self.__logf_of_loge_tck)
             if j > self.__max_iter: self.__max_iter = j
             self.__tot_iter += j
-            if i%10 == 0: sys.stdout.write('\b'*11)
+            if self.__progress_bar:
+                if i%10 == 0: sys.stdout.write('\b'*11)
 
     def __set_velocities(self):
         """Convert absolute velocities to cartesian velocities"""
@@ -328,35 +352,42 @@ class EquilibriumHalo:
         self.__d2rhodr2 = kwargs.get('d2rhodr2', density_profiles.d2alphabetagammadr2)
         self.__pars = kwargs.get('pars', {'alpha': 1., 'beta': 3., 'gamma': 1.,
             'c': 10., 'factor': 0.1})
+        if self.__profile == density_profiles.alphabetagamma and self.__pars['beta'] <= 3.:
+            if 'factor' not in self.__pars.keys(): self.__pars['factor'] = 0.1
         self.__m_vir = kwargs.get('m_vir', '1e12 Msol')
         self.__m_vir = units.Unit(self.__m_vir)
         self.__h = kwargs.get('h', 0.7)
         self.__overden = kwargs.get('overden', 200.)
         self.__r_vir = tools.calc_r_vir(self.__m_vir, self.__h, self.__overden)
         self.__r_s = self.__r_vir/self.__pars['c']
-        self.__logxmin_rho = kwargs.get('logxmin_rho', -3.)
-        self.__logxmax_rho = kwargs.get('logxmax_rho', 3.)
+        self.__n_particles = int(kwargs.get('n_particles', 1e5))
+        self.__logxmax_rho = np.log10(self.__pars['c']) + 2.
+        # Make sure to sample well inside the gravitational softening
+        self.__logxmin_rho = self.__logxmax_rho - .5*np.log10(self.__n_particles) - 3.
         self.__logxmin_dist_func = kwargs.get('logxmin_dist_func', -3.)
         self.__logxmax_dist_func = kwargs.get('logxmax_dist_func', 14.)
         self.__n_sample_rho = int(kwargs.get('n_sample_rho', 1e4))
         self.__n_sample_dist_func = int(kwargs.get('n_sample_dist_func', 1e2))
         self.__n_sample_dist_func_rho = int(kwargs.get('n_sample_dist_func_rho', 1e4))
-        self.__n_particles = int(kwargs.get('n_particles', 1e5))
         self.__random_seed = kwargs.get('random_seed', 4)
         if 'prng' in kwargs.keys():
             self.__prng = kwargs['prng']
         else:
             self.__prng = np.random.RandomState(self.__random_seed)
         self.__spline_order = kwargs.get('spline_order', 3)
+        self.__progress_bar = kwargs.get('progress_bar', False)
         self.__no_bulk_vel = kwargs.get('no_bulk_vel', True)
         self.__x_rho = np.logspace(self.__logxmin_rho, self.__logxmax_rho, self.__n_sample_rho)
         self.__f_bary = kwargs.get('f_bary', 0.1)
         self.__mu = kwargs.get('mu', 1.3)
         self.__spin_parameter = kwargs.get('spin_parameter', 0.04)
         self.__rot_balanced = kwargs.get('rot_balanced', False)
-        self.__gas_profile = kwargs.get('gas_profile', density_profiles.alphabetagamma)
-        self.__gas_pars = kwargs.get('gas_pars', {'alpha': 1., 'beta': 3., 'gamma': 1.,
-            'c': 10., 'factor': 0.1})
+        # Different gas profiles are not yet implemented or successfully tested
+        self.__gas_profile = self.__profile
+        self.__gas_pars = self.__pars
+        #self.__gas_profile = kwargs.get('gas_profile', density_profiles.alphabetagamma)
+        #self.__gas_pars = kwargs.get('gas_pars', {'alpha': 1., 'beta': 3., 'gamma': 1.,
+        #   'c': 10., 'factor': 0.1})
         self.__r_s_gas = self.__r_vir/self.__gas_pars['c']
         self.__vel_prof = kwargs.get('vel_prof', None)
         self.__vel_pars = kwargs.get('vel_pars', {'rs_v': array.SimArray(1., 'kpc'),
@@ -365,6 +396,7 @@ class EquilibriumHalo:
         self.__ang_mom_prof = kwargs.get('ang_mom_prof', am_profiles.bullock_prof)
         self.__ang_mom_pars = kwargs.get('ang_mom_pars', {'mu': self.__mu})
         self.__fname = kwargs.get('fname', 'halo.out')
+        # Careful here: as of now, only the output as tipsy files has been successfully tested
         self.__type = {'gadget': gadget.GadgetSnap,
                         'grafic': grafic.GrafICSnap,
                         'nchilada': nchilada.NchiladaSnap,
@@ -394,6 +426,7 @@ class EquilibriumHalo:
         return -self.__mass(x)/x/x
 
     def __make_dark_halo(self):
+        """Sample the dark matter component of the halo including equilibrium velocities"""
         self.__kwargs['prng'] = np.random.RandomState(self.__random_seed)
         self.__kwargs['snap'] = self.sim.d
         self._dark_halo = SampleDarkHalo(**self.__kwargs)
@@ -402,6 +435,7 @@ class EquilibriumHalo:
         self.sim.d['mass'] *= (1. - self.__f_bary)
 
     def __make_gas_sphere(self):
+        """Sample the gas component of the halo but set velocities to 0"""
         prng = np.random.RandomState(self.__random_seed+1)
         self._gas = SampleDarkHalo(profile=self.__gas_profile, pars=self.__gas_pars,
             m_vir=self.__m_vir, h=self.__h, overden=self.__overden,
@@ -415,6 +449,7 @@ class EquilibriumHalo:
             'g cm**-1 s**-2')
 
     def __calc_enclosed_mass_of_R(self, R):
+        """Calculate enclosed mass as function of polar distance"""
         z = np.append(0, np.logspace(-4, 0, 1000))
         if not 0 in R:
             R = array.SimArray(np.append(0, R), R.units)
@@ -423,7 +458,7 @@ class EquilibriumHalo:
         c = self.__gas_pars['c']
         rs = self.__r_vir/c
         integrand = self.__gas_profile(np.sqrt(Rs*Rs+(c*c*rs*rs-Rs*Rs)*Zs*Zs).in_units(R.units),
-            self.__gas_pars, **self.__kwargs)*Rs
+            self.__gas_pars)*Rs
         integrand[np.where((Rs==0)*(Zs==0))] = 0.
         integrand = 0.5*(integrand[1:,]+integrand[:-1,])
         dz = z[1:] - z[:-1]
@@ -437,11 +472,17 @@ class EquilibriumHalo:
         #self.__enclosed_gas_mass_tck = interp.splrep(R[1:], enclosed_gas_mass)
 
     def __invert_ang_mom_profile(self):
+        """
+        Calculate an interpolating function that inverts the angular momentum profile,
+        i.e. it calculates j as a function of the fraction of virial mass with less
+        angular momentum
+        """
         j = np.linspace(0, 1, 1000)
         m = self.__ang_mom_prof(j, self.__ang_mom_pars)
         self.__inverse_ang_mom_prof_tck = interp.splrep(m, j, k=1)
 
     def __interpolate_jz_of_R(self):
+        """Calculate angular momentum as a function of axisymmetric distance"""
         R = array.SimArray(np.logspace(np.log10(self._gas.sim['rxy'].min()),
             #np.log10(self._gas.sim['rxy'].max()), 1000), self.__r_s)
             np.log10(self._gas.sim['rxy'].max()), 1000),
@@ -453,10 +494,12 @@ class EquilibriumHalo:
         self.__jz_of_R_tck = interp.splrep(R.in_units('kpc'), jz, k=1)
 
     def __calc_j_max(self):
+        """Calculate maximum angular momentum for Bullock profiles"""
         self.__j_max = ((units.G*self.__m_vir*self.__r_vir)**(1,2)) * self.__spin_parameter
         self.__j_max *= np.sqrt(2.) / (1.-self.__mu) / (self.__mu*np.log(1.-1./self.__mu)+1.)
 
     def __set_gas_velocities(self):
+        """Set the gas velocities according to the specified angular momentum profile"""
         self.__interpolate_jz_of_R()
         vc = array.SimArray(interp.splev(self._gas.sim['rxy'].in_units('kpc'),
             self.__jz_of_R_tck), self.__j_max)
@@ -465,15 +508,19 @@ class EquilibriumHalo:
         r_v = self.__r_vir
         vc *= tools.outer_smooth_cutoff(self._gas.sim['r'].in_units(r_v).view(np.ndarray),
             self.__vel_pars['factor'])
-        az = self._gas.sim['az']
+        # Quick and dirty hack due to some weird behaviour of the 'az' derived array in pynbody
+        az = np.arctan2(self._gas.sim['y'], self._gas.sim['x'])
         #self._gas.sim['vel'].units = units.Unit('km s**-1')
         self._gas.sim['vel'][:,:-1] = (np.array([-np.sin(az),
             np.cos(az)])*vc.in_units(self.sim['vel'].units)).transpose()
         self._gas.sim['vel'][:,-1] = np.zeros(self.__n_gas_particles)
 
     def __calc_gravity_pressure(self):
+        """
+        Solve the equation of hydrostatic equilibrium neglecting centrifugal effects of rotation
+        """
         integrand = lambda x: self.__gravity(x)*self.__gas_profile(x*self.__gas_pars['c']/
-            self.__pars['c'], self.__gas_pars, **self.__kwargs)
+            self.__pars['c'], self.__gas_pars)
         self.__p = array.SimArray(tools.simpsons_integral(self.__x_rho, integrand, norm_ind=-1))
         self.__calc_m_c()
         unit = 4.*np.pi*self.__pars['c']*self.__gas_pars['c']**3*self.__overden**2
@@ -484,18 +531,23 @@ class EquilibriumHalo:
             self.__x_rho, self.__p.in_units(self.sim.g['pressure'].units))
 
     def __calc_temp(self):
+        """Calculate the gas temperature based on its density and pressure"""
         # units
         rho_0 = 2./3.*self.__gas_pars['c']**3*self.__overden/self.__m_c_gas
         rho_0 *= tools.calc_rho_crit(self.__h)
         # density 1st guess
         dens = array.SimArray(np.interp(self._gas.sim['r'].in_units(self.__r_s_gas),
             self.__x_rho, self.__gas_profile(self.__x_rho, self.__gas_pars)), rho_0/2.)
-        self.sim.g['rho'] = dens.in_units(self.sim.g['mass'].units/self.sim.g['pos'].units**3)
         temp = (self.sim.g['pressure']/dens/units.k*units.m_p).in_units('K')
         self.sim.g['temp'] = temp
         tools.iterate_temp(self._gas.sim)
 
     def make_halo(self):
+        """
+        Put everything together
+
+        This method actually creates the halo
+        """
         self.__make_dark_halo()
         self.__make_gas_sphere()
         self.__calc_j_max()
@@ -505,6 +557,9 @@ class EquilibriumHalo:
         self.__calc_temp()
 
     def finalize(self):
+        """
+        Prepare IC snapshot and write it to disc
+        """
         self.sim.properties['a'] = 0.
         self.sim.properties['time'] = 0.
         self.sim.g['metals'] = 0.

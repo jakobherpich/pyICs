@@ -1,4 +1,21 @@
 """
+    Copyright (C) 2015 Jakob Herpich (herpich@mpia.de)
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+
 
 density_profiles
 ================
@@ -20,7 +37,7 @@ in arbitrary units.
 
 import numpy as np
 
-def alphabetagamma(x, pars, **kwargs):
+def alphabetagamma(x, pars):
     """
 
     Simple implementation of (alpha, beta, gamma) models (2004ApJ...601..37)
@@ -74,7 +91,7 @@ def alphabetagamma(x, pars, **kwargs):
         rho[outer] /= (c**gamma)*((1+c**alpha)**((beta-gamma)/alpha))
     return rho
 
-def dalphabetagammadr(x, pars, **kwargs):
+def dalphabetagammadr(x, pars):
     """
 
     Funciton that returns the first derivative of the alphabetagamma density
@@ -104,7 +121,7 @@ def dalphabetagammadr(x, pars, **kwargs):
         fac[outer] = eps/x[outer] - 1./c/factor
     return fac*alphabetagamma(x, pars)
 
-def d2alphabetagammadr2(x, pars, **kwargs):
+def d2alphabetagammadr2(x, pars):
     """
 
     Funciton that returns the second derivative of the alphabetagamma density

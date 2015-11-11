@@ -1,4 +1,21 @@
 """
+    Copyright (C) 2015 Jakob Herpich (herpich@mpia.de)
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+
 
 Tools
 =====
@@ -70,7 +87,7 @@ def calc_r_vir(m_vir, h, overden):
     rvir3 = 3./4./np.pi/overden*m_vir/calc_rho_crit(h)
     return units.Unit('{0:.64g} kpc'.format(float(rvir3.in_units('kpc**3')**(1./3.))))
 
-def iterate_temp(gas, tol=1e-4):
+def iterate_temp(gas, tol=1e-4, do_temp=True):
     """
     Solve for the equilibrium temperature iteratively, given an initial pressure
     and the corresponding temperature assuming a mean molecular weight of unity.
@@ -98,7 +115,10 @@ def iterate_temp(gas, tol=1e-4):
     t_orig = temp
     t_old = temp
     mu = 1.
-    mu = get_mu(mu*temp, pressure)
+    if do_temp:
+        mu = get_mu(mu*temp, pressure)
+    else:
+        mu = get_mu(temp, pressure/mu)
     mu_high = np.ones(mu.shape)
     mu_low = np.ones(mu.shape)
     high = np.where(mu > mu_high)
@@ -107,14 +127,20 @@ def iterate_temp(gas, tol=1e-4):
     mu_low[low] = mu[low]
     mu_half = (mu_high+mu_low)/2.
     while ((np.abs(mu_high-mu_low)/mu_low) > tol).any():
-        mu = get_mu(mu_half*temp, pressure)
+        if do_temp:
+            mu = get_mu(mu*temp, pressure)
+        else:
+            mu = get_mu(temp, pressure/mu)
         high = np.where(mu > mu_half)
         mu_low[high] = mu_half[high]
         low = np.where(mu <= mu_half)
         mu_high[low] = mu_half[low]
         mu_half = (mu_high+mu_low)/2.
     gas['mu'] = mu_half
-    gas['temp'] = array.SimArray(mu_half*temp, 'K')
+    if do_temp:
+        gas['temp'] = array.SimArray(mu_half*temp, 'K')
+    else:
+        gas['pressure'] = array.SimArray(pressure/mu, 'g cm**-1 s**-2')
 
 def get_mu(T, elecPres) : 
     """
