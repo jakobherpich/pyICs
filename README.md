@@ -15,3 +15,13 @@ $ cd ..
 $ python
 >>> import pynbody
 ```
+
+#Contributing
+Help me improving pyICs. If you like to add additional functionality or improve the
+code's performance you can create a fork of the repository, make the respective changes
+and submit a pull request (see https://help.github.com/articles/using-pull-requests).
+
+#Support and contact
+If you found bugs or have feature requests you can
+[submit an issue](https://github.com/jakobherpich/pyICs/issues).
+If you need help using the code feel free to drop me an [email](mailto://herpich@mpia.de).
