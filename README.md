@@ -3,17 +3,18 @@
 [pyICs](https://github.com/jakobherpich/pyICs) is a software for creating initial conditions (ICs) to simulate the formation of isolated galaxies. It was designed to create IC files in tipsy format (PKDGRAV/Gasoline/ChaNGa, successfully tested) but should also work for Gadget/Ramses/nchilada (all not tested) files.
 
 [pyICs](https://github.com/jakobherpich/pyICs) depends heavily on the [pynbody](https://github.com/pynbody/pynbody) package as it uses pynbody to create the actual IC files.
+Please install this package first.
 
 ##Getting started
 
-If you have pyhton configured with distutils the following should get you started:
+If you have python configured with distutils the following should get you started:
 ```
 $ git clone https://github.com/jakobherpich/pyICs.git
 $ cd pyICs
 $ python setup.py install
 $ cd ..
 $ python
->>> import pynbody
+>>> import pyICs
 ```
 
 Check out the [GitHub page](http://jakobherpich.github.io/pyICs) for a quick guide on how to use
@@ -31,6 +32,6 @@ If you need help using the code feel free to drop me an [email](mailto:herpich@m
 
 ## Acknowledging pyICs
 If you use pyICs for your work scientific work please mention it along with my name in the acknowledgments:
-*This work made use of the open-source python initial condition creation package {\sc pyICs} written by Jakob Herpich (\url{https://github.com/jakobherpich/pyICs).*
+*This work made use of the open-source python initial condition creation package {\sc pyICs} written by Jakob Herpich (\url{https://github.com/jakobherpich/pyICs}).*
 
 Additionally you can cite my paper that is to be submitted by mid-November 2015 which is part of a series of papers in which pyICs was first used.
