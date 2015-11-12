@@ -60,10 +60,8 @@ def create_ics(**kwargs):
     Hernquist:
     >>> from pyICs.density_profiles import *
     >>> pars = {'alpha': 1., 'beta': 4., 'gamma': 1.}
-    >>> hern = SampleDarkHalo(profile=alphabetagamma, drhodr=dalphabetagammadr,
+    >>> sim = create_ics(profile=alphabetagamma, drhodr=dalphabetagammadr,
     >>>     d2rhodr2=d2alphabetagammadr2, pars=pars, m_vir='1e12 Msol', n_particles=1e6)
-    >>> hern.sample_equilibrium_halo()
-    >>> sim = hern.sim
     >>> sim
     <SimSnap "<created>" len=1000000>
 
@@ -85,7 +83,7 @@ def create_ics(**kwargs):
 
     Then define specific parameters for that function (can be set to 'None').
     >>> pars = ...
-    >>> myhalo = SampleDarkHalo(profile=rho, drhodr=drhodr, d2rhodr2=d2rhodr2, pars=pars)
+    >>> myhalo = create_ics(profile=rho, drhodr=drhodr, d2rhodr2=d2rhodr2, pars=pars)
 
     """
 
@@ -97,8 +95,11 @@ def create_ics(**kwargs):
     args['pars'] = kwargs.get('pars', {'alpha': 1., 'beta': 3., 'gamma': 1.,
         'c': 10., 'factor': 0.1})
     profile = kwargs.get('profile', density_profiles.alphabetagamma)
-    if profile == density_profiles.alphabetagamma and args['pars']['beta'] <= 3.:
-        if 'factor' not in args['pars'].keys(): args['pars']['factor'] = 0.1
+    if profile == density_profiles.alphabetagamma
+        if args['pars']['beta'] <= 3. and 'factor' not in args['pars'].keys():
+            args['pars']['factor'] = 0.1
+        if 'c' not in args['pars'].keys():
+            args['pars']['c'] = 10.
     else:
         unit = kwargs.get('length_unit', '1 kpc')
         r_vir = tools.calc_r_vir(args['m_vir'], args['h'], args['overden'])

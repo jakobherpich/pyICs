@@ -389,7 +389,7 @@ class EquilibriumHalo:
         #self.__gas_pars = kwargs.get('gas_pars', {'alpha': 1., 'beta': 3., 'gamma': 1.,
         #   'c': 10., 'factor': 0.1})
         self.__r_s_gas = self.__r_vir/self.__gas_pars['c']
-        self.__vel_prof = kwargs.get('vel_prof', None)
+        #self.__vel_prof = kwargs.get('vel_prof', None)
         self.__vel_pars = kwargs.get('vel_pars', {'rs_v': array.SimArray(1., 'kpc'),
             'c': self.__pars['c'], 'prefac': 1., 'factor': 1.})
         self.__n_gas_particles = int(kwargs.get('n_gas_particles', self.__n_particles))
