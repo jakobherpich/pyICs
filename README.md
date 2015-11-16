@@ -1,3 +1,5 @@
+Do you want to make isolated galaxy halo initial conditions? Then pyICs is made for you.
+
 #pyICs
 
 [pyICs](https://github.com/jakobherpich/pyICs) is a software for creating initial conditions (ICs) to simulate the formation of isolated galaxies. It was designed to create IC files in tipsy format (PKDGRAV/Gasoline/ChaNGa, successfully tested) but should also work for Gadget/Ramses/nchilada (all not tested) files.
