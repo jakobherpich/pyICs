@@ -29,19 +29,19 @@
       </header>
       <section>
         <h1>
-<a id="pyics-documentation" class="anchor" href="#pyics-documentation" aria-hidden="true"><span class="octicon octicon-link"></span></a>pyICs documentation</h1>
+<a id="pyics-documentation" class="anchor" href="#pyics-documentation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>pyICs documentation</h1>
 
 <p>Here you can find the documentation of my <a href="https://github.com/jakobherpich/pyICs">pyICs</a> code. If you have further questions regarding the code, you can either submit an <a href="https://github.com/jakobherpich/pyICs/issues">issue</a> or drop me an <a href="mailto:herpich@mpia.de">email</a>.</p>
 
 <h2>
-<a id="what-is-pyics" class="anchor" href="#what-is-pyics" aria-hidden="true"><span class="octicon octicon-link"></span></a>What is pyICs?</h2>
+<a id="what-is-pyics" class="anchor" href="#what-is-pyics" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>What is pyICs?</h2>
 
 <p><a href="https://github.com/jakobherpich/pyICs">pyICs</a> is a python package to create initial condition (IC) files for N-body simulations of the formation of isolated galaxies. It uses the <a href="https://github.com/pynbody/pynbody">pynbody</a> analysis package to create the actual IC files. pyICs generates dark matter halos (DM) in dynamical equilibrium which host a rotating gas sphere. The DM particle velocities are drawn from the equilibrium distribution function (Kazantzidis et al. 2004 ApJ, 601, 37). The gas sphere has a Bullock et al. (2001 ApJ, 555, 240) angular momentum profile. The DM and the gas share the same 3D radial density profile. The code natively supports the αβγ-models: ρ ~ (r/a)<sup>-γ</sup>[1+(r/a)<sup>α</sup>]<sup>(γ-β)/α</sup>. If γ &lt;= 3, the profiles are smoothly truncated outside the virial radius.</p>
 
 <p>The radial profile can be arbitrary as long as python functions for the profile itself and its first and second derivative with radius are given.</p>
 
 <h2>
-<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h2>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Installation</h2>
 
 <p>If you have pyhton configured with distutils the following should get you started:</p>
 
@@ -54,12 +54,12 @@ $ python
 </code></pre>
 
 <h2>
-<a id="using-the-code" class="anchor" href="#using-the-code" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using the code</h2>
+<a id="using-the-code" class="anchor" href="#using-the-code" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Using the code</h2>
 
 <p>The code will create an initial conditions file that can be evolved with a Hydrodynamics solver. The code has only been tested for the <em>tipsy</em> file format which is supported by <a href="http://adsabs.harvard.edu/abs/2004NewA....9..137W">Gasoline</a> and <a href="https://github.com/N-BodyShop/changa">ChaNGa</a>. It should, however, also support Grafic IC Snaps, Gadget, Ramses and N-Chilada snapshots. Compatibility with these formats has not been tested. I would really appreciate any effort to test these other formats. If you do so please inform me about your experience and possible hacks to make it work.</p>
 
 <h3>
-<a id="tipsy-units" class="anchor" href="#tipsy-units" aria-hidden="true"><span class="octicon octicon-link"></span></a>Tipsy units</h3>
+<a id="tipsy-units" class="anchor" href="#tipsy-units" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Tipsy units</h3>
 
 <p>In the default case of tipsy file outputs the length and mass units are:</p>
 
@@ -70,11 +70,11 @@ dMsolUnit = 2.325e5
 <p>Thus, the two line above need to be included in the <code>param</code> file.</p>
 
 <h3>
-<a id="the-simple-way" class="anchor" href="#the-simple-way" aria-hidden="true"><span class="octicon octicon-link"></span></a>The simple way</h3>
+<a id="the-simple-way" class="anchor" href="#the-simple-way" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>The simple way</h3>
 
 <p>Use the alpha-beta-gamma models. In this case the only thing you need to do, is to specify the the values for α, β and γ:</p>
 
-<pre><code>&gt;&gt;&gt; from pyICs.convenience import create_ics
+<pre><code>&gt;&gt;&gt; from pyICs import create_ics
 &gt;&gt;&gt; pars = {'alpha': 1., 'beta': 3., 'gamma': 1., 'c': 10.}
 &gt;&gt;&gt; myhalo = creat_ics(pars=pars)
 </code></pre>
@@ -82,7 +82,7 @@ dMsolUnit = 2.325e5
 <p>This piece of code will create a 10<sup>12</sup> Msol halo with an NFW density profile and a spin parameter of 0.04. The initial conditions file will be saved in the working directory as <code>halo.out</code>. The default parameters can be changed (see <a href="#parameters">Parameters</a>).</p>
 
 <h3>
-<a id="the-versatile-way" class="anchor" href="#the-versatile-way" aria-hidden="true"><span class="octicon octicon-link"></span></a>The versatile way</h3>
+<a id="the-versatile-way" class="anchor" href="#the-versatile-way" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>The versatile way</h3>
 
 <p>You can also define the density profile yourself. In this case you have to specify the corresponding first and second derivative as these are needed to compute the distribution function of the stable halo. Note that the profiles do not need to be properly normalized as this will be done by the code according to a specified virial mass of the halo (The default value is 10<sup>12</sup> Msol with Hubble constant h=0.7 and mean overdensity &lt;rho&gt;/rho_crit(h)=200.). All three of these functions must accept two arguments: radius (array like), pars (python dictionary with possible parameters, can be empty <code>{}</code>)</p>
 
@@ -104,7 +104,7 @@ dMsolUnit = 2.325e5
 <p>Again the resulting initial conditions file will be saved as <code>halo.out</code>.</p>
 
 <h2>
-<a id="parameters" class="anchor" href="#parameters" aria-hidden="true"><span class="octicon octicon-link"></span></a>Parameters</h2>
+<a id="parameters" class="anchor" href="#parameters" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Parameters</h2>
 
 <p>Here we present a list of the most important parameters to be passed to the code in <code>key=value</code> style:</p>
 
@@ -178,7 +178,7 @@ dMsolUnit = 2.325e5
 </table>
 
 <h2>
-<a id="acknowledging-pyics" class="anchor" href="#acknowledging-pyics" aria-hidden="true"><span class="octicon octicon-link"></span></a>Acknowledging pyICs</h2>
+<a id="acknowledging-pyics" class="anchor" href="#acknowledging-pyics" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Acknowledging pyICs</h2>
 
 <p>If you use pyICs for your work scientific work please mention it along with my name in the acknowledgments:
 <em>This work made use of the open-source python initial condition creation package {\sc pyICs} written by Jakob Herpich (\url{<a href="https://github.com/jakobherpich/pyICs">https://github.com/jakobherpich/pyICs</a>).</em></p>
