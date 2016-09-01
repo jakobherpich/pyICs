@@ -13,7 +13,7 @@ $ cd pyICs
 $ python setup.py install
 $ cd ..
 $ python
->>> import pynbody
+>>> import pyICs
 ```
 
 Check out the [GitHub page](http://jakobherpich.github.io/pyICs) for a quick guide on how to use
