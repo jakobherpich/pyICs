@@ -1,0 +1,8 @@
+title: PyICs
+description: An initial conditions creator for isolated galaxy formation simulations.
+google_analytics: 
+show_downloads: true
+theme: jekyll-theme-minimal
+
+gems:
+  - jekyll-mentions
