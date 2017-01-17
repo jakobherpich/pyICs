@@ -36,7 +36,7 @@ If you need help using the code feel free to drop me an [email](mailto:herpich@m
 If you use pyICs for your work scientific work please mention it along with my name in the acknowledgments:
 *This work made use of the open-source python initial condition creation package {\sc pyICs} written by Jakob Herpich (\url{https://github.com/jakobherpich/pyICs}).*
 
-Additionally you can cite my paper that is to be submitted by mid-November 2015 which is part of a series of papers in which pyICs was first used.
+Additionally you can cite my paper (http://adsabs.harvard.edu/abs/2015arXiv151104442H) which is part of a series of papers in which pyICs was first used.
 
 ## Thanks
 Special thanks go to Rok Roškar who gave me a great script to start out with and Stelios Kazantzidis who kindly provided his code for creating stable DM halos.
