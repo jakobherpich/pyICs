@@ -14,7 +14,7 @@ $ cd pyICs
 $ python setup.py install
 $ cd ..
 $ python
->>> import pynbody
+>>> import pyICs
 ```
 
 ## Using the code
