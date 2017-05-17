@@ -33,7 +33,7 @@ Use the alpha-beta-gamma models. In this case the only thing you need to do, is 
 ```
 >>> from pyICs import create_ics
 >>> pars = {'alpha': 1., 'beta': 3., 'gamma': 1., 'c': 10.}
->>> myhalo = creat_ics(pars=pars)
+>>> myhalo = create_ics(pars=pars)
 ```
 This piece of code will create a 10<sup>12</sup> Msol halo with an NFW density profile and a spin parameter of 0.04. The initial conditions file will be saved in the working directory as `halo.out`. The default parameters can be changed (see [Parameters](#parameters)).
 
