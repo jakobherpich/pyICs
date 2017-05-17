@@ -149,7 +149,7 @@ class SampleDarkHalo:
         no_duplicate = np.append(no_duplicate[0], no_duplicate[0][-1] + 1)
         mass = masses[no_duplicate]
         if (mass[:-1] >= mass[1:]).any():
-            raise RuntimeError, "Mass array not monotonically increasing"
+            raise RuntimeError("Mass array not monotonically increasing")
         self.__x_of_cum_mass_dist_tck = interp.splrep(mass, self.__x_rho[no_duplicate],
             k=self.__spline_order)
         self.__r = interp.splev(self.__prng.uniform(0., self.__m_max, self.__n_particles),
@@ -201,7 +201,7 @@ class SampleDarkHalo:
             self.__n_sample_dist_func)
         self.__e_dist_func = 10**interp.splev(logxs, self.__logpsi_of_logx_tck)
         if (np.diff(self.__e_dist_func) > 0).any():
-            raise RuntimeError, "Potential not a monotonic function of radius"
+            raise RuntimeError("Potential not a monotonic function of radius")
         self.__f_dist_func = np.ones(self.__n_sample_dist_func)*np.nan
         ts = np.pi/2.*(1. - np.linspace(1., 0., self.__n_sample_dist_func_rho)**4)
         dt = np.diff(ts)

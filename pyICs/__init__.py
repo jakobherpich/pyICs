@@ -18,8 +18,9 @@
 """
 
 from . import am_profiles, density_profiles, equilibrium_halos, tools
-import scipy.interpolate as interp
 import numpy as np
+from pynbody import units
+import scipy.interpolate as interp
 
 def create_ics(**kwargs):
     """
@@ -88,7 +89,7 @@ def create_ics(**kwargs):
 
     args = {}
     m_vir = kwargs.get('m_vir', '1e12 Msol')
-    args['m_vir'] = pynbody.units.Unit(m_vir)
+    args['m_vir'] = units.Unit(m_vir)
     args['h'] = kwargs.get('h', 0.7)
     args['overden'] = kwargs.get('overden', 200)
     args['pars'] = kwargs.get('pars', {'alpha': 1., 'beta': 3., 'gamma': 1.,
