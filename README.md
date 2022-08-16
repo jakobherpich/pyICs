@@ -30,7 +30,7 @@ and submit a pull request (see https://help.github.com/articles/using-pull-reque
 ##Support and contact
 If you found bugs or have feature requests you can
 [submit an issue](https://github.com/jakobherpich/pyICs/issues).
-If you need help using the code feel free to drop me an [email](mailto:herpich@mpia.de).
+If you need help using the code feel free to drop me an [email](mailto:jakob@jkherpich.de).
 
 ## Acknowledging pyICs
 If you use pyICs for your work scientific work please mention it along with my name in the acknowledgments:
